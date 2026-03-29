@@ -10,12 +10,30 @@ So in response to the question in Section 1, the main user functionalities are t
 **a. Initial design**
 
 - Briefly describe your initial UML design.
+I have four classes (Pet, Owner, Task, Schedule) and this is the basic overview of the design/relationships: 
+1. PetOwner -> Pet: one-to-many (an owner can have multiple pets)
+2. Schedule -> PetOwner: many-to-one (a schedule belongs to one owner)
+3. Schedule -> Pet: many-to-one (a schedule is for one specific pet)
+4. Schedule -> Tasks: one-to-many (a schedule contains multiple tasks)
 - What classes did you include, and what responsibilities did you assign to each?
+So I have four classes:
+1. PetOwner - basically stores all the information related to the pet owner, including name, list of pets, and ways to contact the owner.
+2. Pet - this class stores information about each individual pet including name, type of pet, allergies
+3. Task - this class stores information related to individual tasks including name, type, and any time constraints.
+4. Schedule - this class is regarding the order of tasks, status, owner and pet references. 
 
 **b. Design changes**
 
 - Did your design change during implementation?
+Yes
 - If yes, describe at least one change and why you made it.
+So I've implemented these following changes:
+    1. Added back-reference Schedule list to PetOwner (schedules_list), because originally you couldn't look up all schedules belonging to an owner, you would only be able to look at the owner tied to a schedule, but not the other way around, which is crucial because it's important to record history
+    2. Added back-reference Schedule list to Pet (schedules_list), so you can look up all schedules for a specific pet.
+    3. Added owner/pet validation in Schedule.create_schedule(), which raises a ValueError if the pet doesn't belong to the given owner
+    4. Replaced manual estimated_duration field with a computed @property that always reflects the sum of task durations in tasks_list.
+    5. Lastly, replaced free-form priority string on Task with a Priority Enum to prevent inconsistent values like "urgent" vs "URGENT" vs "1".
+
 
 ---
 
