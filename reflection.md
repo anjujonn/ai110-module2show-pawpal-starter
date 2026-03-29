@@ -2,6 +2,11 @@
 
 ## 1. System Design
 
+So in response to the question in Section 1, the main user functionalities are these:
+1. let users enter information about themselves and their pet
+2. allow the user to add and edit tasks and their info
+3. generate a daily schedule based on the provided information
+
 **a. Initial design**
 
 - Briefly describe your initial UML design.
