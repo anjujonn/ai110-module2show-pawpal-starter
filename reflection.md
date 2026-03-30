@@ -47,7 +47,9 @@ So I've implemented these following changes:
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
+when adding tasks, I think my code works overtime because it adds the task to the owner but also to the master schedule. 
 - Why is that tradeoff reasonable for this scenario?
+Well, the requirement isn't really to track schedules based on owner, rather just to have a general day-to-day schedule for the pet owner.
 
 ---
 

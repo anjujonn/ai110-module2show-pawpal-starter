@@ -41,3 +41,34 @@ pip install -r requirements.txt
 5. Add tests to verify key behaviors.
 6. Connect your logic to the Streamlit UI in `app.py`.
 7. Refine UML so it matches what you actually built.
+
+## Smarter Scheduling
+Feature 1: Owner Management
+- you can add multiple owners
+- you can select owners given that you can have multiple per day
+- duplicate prevention where you can't add duplicate owners (this does a name-to-name check which isn't proper, however, just for simplicity I had it implemented in that manner)
+
+Feature 2: Pet Management
+- owners can have multiple pets
+- users can select which pet they are reffering to
+- users can also remove pets
+- there is also a duplicate-prevention feature here (same thing, so if duplicate names exist, it wont allow for it to exist)
+
+Feature 3: Task Management (per pet)
+- theres a three-tab task view (all, pending, completed)
+- theres an option to mark a task complete
+- when a daily is marked done, a new copy is created. This is the same for weekly tasks 
+- users can delete tasks
+- lastly, every task carries a due_date field
+
+Feature 4: Master Schedule
+- this is where all scheduled tasks are displayed for all owners' pets.
+- there are filtering features to allow filtering by owner, pet, status, priority
+- users are able to sort by time
+- conflicts are detected
+- there's a button to reset daily and weekly tasks 
+- the metric bar shows the tasks, pending, estimated duration, and time conflicts
+
+Feature 5: Summary Panels
+- there's a per-owner summary with total tasks, pending count, and urgent count across all of the owner's pets
+- theres an overall summery which appears when more than 2 owners exist, where it's one row per owner shiwing their pet name plus task, pending/urgent counts

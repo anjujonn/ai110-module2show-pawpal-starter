@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Optional
 from enum import Enum
 
@@ -23,6 +24,7 @@ Relationships:
 
 
 class Priority(Enum):
+    """Urgency levels for a task, from least to most critical."""
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -30,6 +32,7 @@ class Priority(Enum):
 
 
 class Frequency(Enum):
+    """How often a task repeats. ONCE means it is a one-time event."""
     ONCE = "once"
     DAILY = "daily"
     WEEKLY = "weekly"
@@ -59,12 +62,15 @@ class Task:
     specific_time: Optional[str] = None
     notes: str = ""
     completed: bool = False
+    due_date: Optional[str] = None   # "YYYY-MM-DD"; set on creation, auto-advanced on complete
 
     @classmethod
     def create_task(cls, name, type_of_task, duration, priority=Priority.MEDIUM,
-                    frequency=Frequency.ONCE, specific_time=None, notes=""):
+                    frequency=Frequency.ONCE, specific_time=None, notes="",
+                    due_date=None):
         """Create and return a new Task instance."""
-        return cls(name, type_of_task, duration, priority, frequency, specific_time, notes)
+        return cls(name, type_of_task, duration, priority, frequency,
+                   specific_time, notes, False, due_date)
 
     def edit_task(self, **kwargs):
         """Update any Task field by keyword. e.g. task.edit_task(priority=Priority.HIGH)"""
@@ -72,9 +78,28 @@ class Task:
             if hasattr(self, key):
                 setattr(self, key, value)
 
-    def mark_complete(self):
-        """Mark this task as done."""
+    def mark_complete(self, pet: "Pet" = None):
+        """
+        Mark this task as done.
+        For DAILY tasks  → schedules a new instance due tomorrow (today + 1 day).
+        For WEEKLY tasks → schedules a new instance due next week (today + 7 days).
+        Pass the owning pet so the new instance can be added to its task list.
+        """
         self.completed = True
+        if pet is not None and self.frequency in (Frequency.DAILY, Frequency.WEEKLY):
+            delta = timedelta(days=1) if self.frequency == Frequency.DAILY else timedelta(weeks=1)
+            base = date.fromisoformat(self.due_date) if self.due_date else date.today()
+            next_task = Task.create_task(
+                name=self.name,
+                type_of_task=self.type_of_task,
+                duration=self.duration,
+                priority=self.priority,
+                frequency=self.frequency,
+                specific_time=self.specific_time,
+                notes=self.notes,
+                due_date=(base + delta).isoformat(),
+            )
+            pet.add_task(next_task)
 
     def delete_task(self, pet: "Pet"):
         """Remove this task from the given pet's task list."""
@@ -145,6 +170,7 @@ class PetOwner:
     """
 
     def __init__(self):
+        """Initialise a blank PetOwner. Use create_owner_profile() to build one with data."""
         self.name: str = ""
         self.address: str = ""
         self.phone_number: str = ""
@@ -198,6 +224,7 @@ class Scheduler:
     """
 
     def __init__(self):
+        """Initialise a blank Scheduler. Use create_schedule() to build one with data."""
         self.status: str = ""
         self.pet_owner: Optional[PetOwner] = None
         self.pet: Optional[Pet] = None
@@ -262,3 +289,98 @@ class Scheduler:
     def get_pending_tasks_across_pets(self) -> list:
         """Return all incomplete tasks across every pet the owner has."""
         return [t for t in self.get_all_tasks_across_pets() if not t.completed]
+
+    def sort_by_time(self) -> list:
+        """
+        Return all tasks across the owner's pets sorted by specific_time (HH:MM).
+        Tasks without a specific_time are placed at the end.
+        Uses a lambda as the sort key so strings like '08:00' sort lexicographically,
+        which works correctly for zero-padded HH:MM format.
+        """
+        return sorted(
+            self.get_all_tasks_across_pets(),
+            key=lambda t: t.specific_time if t.specific_time else "99:99"
+        )
+
+    def filter_tasks(self, completed=None, pet_name=None) -> list:
+        """
+        Filter tasks by completion status and/or pet name.
+
+        completed : True  → completed tasks only
+                    False → pending tasks only
+                    None  → all tasks regardless of status
+        pet_name  : name of a specific pet to restrict results to;
+                    None means include all pets
+        """
+        if pet_name is not None:
+            target = next(
+                (p for p in self.pet_owner.pets_list if p.name == pet_name),
+                None
+            ) if self.pet_owner else None
+            tasks = target.tasks_list if target else []
+        else:
+            tasks = self.get_all_tasks_across_pets()
+
+        if completed is not None:
+            tasks = [t for t in tasks if t.completed == completed]
+
+        return tasks
+
+    # ── conflict detection ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _parse_time(time_str) -> Optional[int]:
+        """Convert 'HH:MM' to minutes since midnight. Returns None if missing or invalid."""
+        if not time_str:
+            return None
+        try:
+            h, m = time_str.strip().split(":")
+            return int(h) * 60 + int(m)
+        except (ValueError, AttributeError):
+            return None
+
+    @staticmethod
+    def _mins_to_str(mins: int) -> str:
+        """Convert minutes since midnight back to 'HH:MM'."""
+        return f"{mins // 60:02d}:{mins % 60:02d}"
+
+    def detect_conflicts(self) -> list:
+        """
+        Scan all pending, timed tasks across every pet for overlapping windows.
+
+        Two tasks conflict when their time windows overlap:
+            start_A < end_B  AND  start_B < end_A
+
+        Strategy is lightweight — returns a list of human-readable warning
+        strings instead of raising exceptions. An empty list means no conflicts.
+        Works across same-pet and different-pet task pairs.
+        """
+        # Build (task, pet, start_mins) for every pending task that has a time
+        timed = []
+        pets = self.pet_owner.pets_list if self.pet_owner else []
+        for pet in pets:
+            for task in pet.tasks_list:
+                if task.completed:
+                    continue
+                start = self._parse_time(task.specific_time)
+                if start is not None:
+                    timed.append((task, pet, start))
+
+        warnings = []
+        for i, (task_a, pet_a, start_a) in enumerate(timed):
+            end_a = start_a + task_a.duration
+            for j, (task_b, pet_b, start_b) in enumerate(timed):
+                if j <= i:          # avoid duplicates and self-comparison
+                    continue
+                end_b = start_b + task_b.duration
+                if start_a < end_b and start_b < end_a:
+                    same = "same pet" if pet_a is pet_b else f"{pet_a.name} & {pet_b.name}"
+                    warnings.append(
+                        f"WARNING: '{task_a.name}' ({pet_a.name}, "
+                        f"{task_a.specific_time}-{self._mins_to_str(end_a)}) "
+                        f"overlaps with '{task_b.name}' ({pet_b.name}, "
+                        f"{task_b.specific_time}-{self._mins_to_str(end_b)}) "
+                        f"[{same}]"
+                    )
+
+        return warnings
