@@ -72,3 +72,35 @@ Feature 4: Master Schedule
 Feature 5: Summary Panels
 - there's a per-owner summary with total tasks, pending count, and urgent count across all of the owner's pets
 - theres an overall summery which appears when more than 2 owners exist, where it's one row per owner shiwing their pet name plus task, pending/urgent counts
+
+## Testing PawPal+
+### Command to run tests: `python -m pytest`
+### Description: 
+1. Sorting (5 tests)
+- Chronological order with out-of-order insertion
+- Anytime tasks (specific_time=None) land at the end
+- Two tasks at the exact same time -> no crash
+- Pet with zero tasks returns []
+- Tasks merged correctly across multiple pets
+
+2. Recurrence Logic (5 tests)
+- daily -> new task due tomorrow
+- weekly -> new task due 7 days later
+- once -> no new task created
+- New occurrence copies all attributes (name, priority, time, notes, etc.) -> shouldn't go through
+- Bug discovered: calling mark_complete twice creates a duplicate occurrence -> the test documents this and notes the fix (if not self.completed guard in mark_complete) ** NOTE: I'm not sure if this was okay because the test passes, but obv this is to detect a bug. So, I apologize if it wasn't allowed
+
+3. Conflict Detection (7 tests)
+- Same-pet overlap flagged
+- Cross-pet overlap flagged
+- Identical start times flagged
+- Back-to-back tasks (A ends exactly when B starts) -> correctly NOT flagged
+- No tasks → empty list, no crash
+- Completed tasks are ignored
+- Anytime tasks (no time) are ignored
+
+4. Filter Tasks (4 tests) -> pending only, completed only, by pet name, unknown pet name should return []
+
+5. Scheduler Creation (1 test) -> tests the ValueError that should be raised when pet doesn't belong to the owner
+
+### Reliability Level: 4
